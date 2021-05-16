@@ -22,8 +22,8 @@ IN THE SOFTWARE.
  ========================================================================= */
 
 #include "I2Cbus.hpp"
-#include <stdio.h>
-#include <stdint.h>
+#include <cstdio>
+#include <cstdint>
 #include "sdkconfig.h"
 #include "esp_err.h"
 #include "esp_log.h"
@@ -69,12 +69,12 @@ I2C::~I2C() {
     close();
 }
 
-esp_err_t I2C::begin(gpio_num_t sda_io_num, gpio_num_t scl_io_num, uint32_t clk_speed) {
+esp_err_t I2C::begin(gpio_num_t sda_io_num, gpio_num_t scl_io_num, uint32_t clk_speed) const {
     return begin(sda_io_num, scl_io_num, GPIO_PULLUP_ENABLE, GPIO_PULLUP_ENABLE, clk_speed);
 }
 
 esp_err_t I2C::begin(gpio_num_t sda_io_num, gpio_num_t scl_io_num, gpio_pullup_t sda_pullup_en,
-        gpio_pullup_t scl_pullup_en, uint32_t clk_speed) {
+        gpio_pullup_t scl_pullup_en, uint32_t clk_speed) const {
     i2c_config_t conf;
     conf.mode = I2C_MODE_MASTER;
     conf.sda_io_num = sda_io_num;
@@ -88,7 +88,7 @@ esp_err_t I2C::begin(gpio_num_t sda_io_num, gpio_num_t scl_io_num, gpio_pullup_t
     return err;
 }
 
-esp_err_t I2C::close() {
+esp_err_t I2C::close() const {
     return i2c_driver_delete(port);
 }
 
@@ -101,7 +101,7 @@ void I2C::setTimeout(uint32_t ms) {
 /*******************************************************************************
  * WRITING
  ******************************************************************************/
-esp_err_t I2C::writeBit(uint8_t devAddr, uint8_t regAddr, uint8_t bitNum, uint8_t data, int32_t timeout) {
+esp_err_t I2C::writeBit(uint8_t devAddr, uint8_t regAddr, uint8_t bitNum, uint8_t data, int32_t timeout) const {
     uint8_t buffer;
     esp_err_t err = readByte(devAddr, regAddr, &buffer, timeout);
     if (err) return err;
@@ -109,7 +109,7 @@ esp_err_t I2C::writeBit(uint8_t devAddr, uint8_t regAddr, uint8_t bitNum, uint8_
     return writeByte(devAddr, regAddr, buffer, timeout);
 }
 
-esp_err_t I2C::writeBits(uint8_t devAddr, uint8_t regAddr, uint8_t bitStart, uint8_t length, uint8_t data, int32_t timeout) {
+esp_err_t I2C::writeBits(uint8_t devAddr, uint8_t regAddr, uint8_t bitStart, uint8_t length, uint8_t data, int32_t timeout) const {
     uint8_t buffer;
     esp_err_t err = readByte(devAddr, regAddr, &buffer, timeout);
     if (err) return err;
@@ -121,16 +121,18 @@ esp_err_t I2C::writeBits(uint8_t devAddr, uint8_t regAddr, uint8_t bitStart, uin
     return writeByte(devAddr, regAddr, buffer, timeout);
 }
 
-esp_err_t I2C::writeByte(uint8_t devAddr, uint8_t regAddr, uint8_t data, int32_t timeout) {
+esp_err_t I2C::writeByte(uint8_t devAddr, uint8_t regAddr, uint8_t data, int32_t timeout) const {
     return writeBytes(devAddr, regAddr, 1, &data, timeout);
 }
 
-esp_err_t I2C::writeBytes(uint8_t devAddr, uint8_t regAddr, size_t length, const uint8_t *data, int32_t timeout) {
+esp_err_t I2C::writeBytes(uint8_t devAddr, uint8_t regAddr, size_t length, const uint8_t *data, int32_t timeout) const {
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
     i2c_master_start(cmd);
     i2c_master_write_byte(cmd, (devAddr << 1) | I2C_MASTER_WRITE, I2C_MASTER_ACK_EN);
     i2c_master_write_byte(cmd, regAddr, I2C_MASTER_ACK_EN);
-    i2c_master_write(cmd, (uint8_t*) data, length, I2C_MASTER_ACK_EN);
+    if (length > 0 && data != nullptr) {
+        i2c_master_write(cmd, (uint8_t *) data, length, I2C_MASTER_ACK_EN);
+    }
     i2c_master_stop(cmd);
     esp_err_t err = i2c_master_cmd_begin(port, cmd, (timeout < 0 ? ticksToWait : pdMS_TO_TICKS(timeout)));
     i2c_cmd_link_delete(cmd);
@@ -160,11 +162,11 @@ esp_err_t I2C::writeBytes(uint8_t devAddr, uint8_t regAddr, size_t length, const
 /*******************************************************************************
  * READING
  ******************************************************************************/
-esp_err_t I2C::readBit(uint8_t devAddr, uint8_t regAddr, uint8_t bitNum, uint8_t *data, int32_t timeout) {
+esp_err_t I2C::readBit(uint8_t devAddr, uint8_t regAddr, uint8_t bitNum, uint8_t *data, int32_t timeout) const {
     return readBits(devAddr, regAddr, bitNum, 1, data, timeout);
 }
 
-esp_err_t I2C::readBits(uint8_t devAddr, uint8_t regAddr, uint8_t bitStart, uint8_t length, uint8_t *data, int32_t timeout) {
+esp_err_t I2C::readBits(uint8_t devAddr, uint8_t regAddr, uint8_t bitStart, uint8_t length, uint8_t *data, int32_t timeout) const {
     uint8_t buffer;
     esp_err_t err = readByte(devAddr, regAddr, &buffer, timeout);
     if (!err) {
@@ -176,11 +178,11 @@ esp_err_t I2C::readBits(uint8_t devAddr, uint8_t regAddr, uint8_t bitStart, uint
     return err;
 }
 
-esp_err_t I2C::readByte(uint8_t devAddr, uint8_t regAddr, uint8_t *data, int32_t timeout) {
+esp_err_t I2C::readByte(uint8_t devAddr, uint8_t regAddr, uint8_t *data, int32_t timeout) const {
     return readBytes(devAddr, regAddr, 1, data, timeout);
 }
 
-esp_err_t I2C::readBytes(uint8_t devAddr, uint8_t regAddr, size_t length, uint8_t *data, int32_t timeout) {
+esp_err_t I2C::readBytes(uint8_t devAddr, uint8_t regAddr, size_t length, uint8_t *data, int32_t timeout) const {
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
     i2c_master_start(cmd);
     i2c_master_write_byte(cmd, (devAddr << 1) | I2C_MASTER_WRITE, I2C_MASTER_ACK_EN);
@@ -216,7 +218,7 @@ esp_err_t I2C::readBytes(uint8_t devAddr, uint8_t regAddr, size_t length, uint8_
 /*******************************************************************************
  * UTILS
  ******************************************************************************/
-esp_err_t I2C::testConnection(uint8_t devAddr, int32_t timeout) {
+esp_err_t I2C::testConnection(uint8_t devAddr, int32_t timeout) const {
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
     i2c_master_start(cmd);
     i2c_master_write_byte(cmd, (devAddr << 1) | I2C_MASTER_WRITE, I2C_MASTER_ACK_EN);
@@ -226,7 +228,7 @@ esp_err_t I2C::testConnection(uint8_t devAddr, int32_t timeout) {
     return err;
 }
 
-void I2C::scanner() {
+void I2C::scanner() const {
     constexpr int32_t scanTimeout = 20;
     printf(LOG_COLOR_W "\n>> I2C scanning ..." LOG_RESET_COLOR "\n");
     uint8_t count = 0;
